@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Redthread</title>
+  <meta name="description" content="A public yard that turns every hour. Write privately. Pin what should be seen." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Outfit:wght@360;480;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg: #14110e;
+      --bg2: #1c1813;
+      --paper: #ece4d6;
+      --ink: #ece4d6;
+      --muted: #9a8b78;
+      --line: #3a3229;
+      --thread: #c44a32;
+      --thread-2: #8e2f22;
+      --good: #7ea072;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      background:
+        radial-gradient(900px 380px at 90% -10%, rgba(196,74,50,.18), transparent 50%),
+        radial-gradient(700px 280px at -10% 20%, rgba(126,160,114,.08), transparent 45%),
+        linear-gradient(180deg, #17140f, #14110e 40%, #100e0b);
+      color: var(--ink);
+      font-family: Outfit, system-ui, sans-serif;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: "";
+      position: fixed; inset: 0; pointer-events: none; opacity: .07;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+    .thread {
+      position: fixed; top: 0; left: 18%; width: 1px; height: 100%;
+      background: linear-gradient(180deg, transparent, var(--thread), transparent);
+      opacity: .55; animation: drift 9s ease-in-out infinite;
+      pointer-events: none;
+    }
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 30px 22px 90px; position: relative; }
+    header.top {
+      display: flex; justify-content: space-between; align-items: center; gap: 16px;
+      animation: drop .7s ease both;
+    }
+    .mark {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-size: 30px; letter-spacing: -.03em;
+    }
+    .mark em { color: var(--thread); font-style: italic; }
+    .nav { display: flex; gap: 10px; align-items: center; font-size: 13px; color: var(--muted); }
+    .btn {
+      border: 1px solid var(--line); background: transparent; color: var(--ink);
+      padding: 9px 13px; cursor: pointer; border-radius: 999px;
+      transition: transform .2s ease, background .2s ease, border-color .2s ease;
+    }
+    .btn:hover { transform: translateY(-1px); border-color: var(--paper); }
+    .btn.solid { background: var(--thread); border-color: var(--thread); color: #fff; }
+    .btn.solid:hover { background: var(--thread-2); border-color: var(--thread-2); }
+    .hero { display: grid; grid-template-columns: 1.15fr .85fr; gap: 32px; padding: 48px 0 8px; }
+    @media (max-width: 820px) { .hero, .board { grid-template-columns: 1fr; } .thread { left: 8%; } }
+    h1 {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-size: clamp(46px, 8vw, 86px);
+      line-height: .9; margin: 0 0 16px; font-weight: 400;
+      animation: rise .85s ease both;
+    }
+    .lede { color: var(--muted); max-width: 40ch; line-height: 1.6; animation: rise .95s .06s ease both; }
+    .clock {
+      margin-top: 22px; font-size: 13px; letter-spacing: .16em; text-transform: uppercase; color: var(--thread);
+      animation: rise 1s .1s ease both;
+    }
+    .edition {
+      background: linear-gradient(180deg, #221c16, #1a1612);
+      border: 1px solid var(--line);
+      padding: 24px;
+      border-radius: 18px;
+      box-shadow: 0 30px 60px rgba(0,0,0,.28);
+      animation: card .9s .12s ease both;
+      position: relative; overflow: hidden;
+    }
+    .edition::after {
+      content: ""; position: absolute; inset: auto -20% -40% auto; width: 180px; height: 180px;
+      background: radial-gradient(circle, rgba(196,74,50,.25), transparent 70%);
+    }
+    .edition small { display: block; letter-spacing: .2em; text-transform: uppercase; font-size: 11px; color: var(--thread); margin-bottom: 10px; }
+    .edition h2 { font-family: "Instrument Serif", Georgia, serif; margin: 0 0 12px; font-size: 30px; font-weight: 400; }
+    .edition p { margin: 0; line-height: 1.65; color: #d7cdbd; }
+    .board { margin-top: 48px; display: grid; grid-template-columns: .92fr 1.08fr; gap: 26px; }
+    .panel { border-top: 1px solid var(--line); padding-top: 18px; animation: rise .7s .18s ease both; }
+    .panel h3 { font-family: "Instrument Serif", Georgia, serif; margin: 0 0 14px; font-size: 28px; font-weight: 400; }
+    label { display: block; font-size: 12px; color: var(--muted); margin: 12px 0 5px; }
+    input, textarea {
+      width: 100%; border: 1px solid var(--line); background: #1a1612; color: var(--ink);
+      padding: 11px 12px; border-radius: 10px; font: inherit;
+    }
+    textarea { min-height: 120px; resize: vertical; }
+    .row { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+    .check { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
+    .err { color: #e07a68; font-size: 13px; margin-top: 10px; }
+    .ok { color: var(--good); font-size: 13px; margin-top: 10px; }
+    .note {
+      border-bottom: 1px solid var(--line); padding: 16px 0;
+      animation: rise .45s ease both;
+    }
+    .note .meta { font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; gap: 12px; margin-bottom: 7px; }
+    .note p { margin: 0; line-height: 1.58; white-space: pre-wrap; }
+    footer.foot {
+      margin-top: 64px; border-top: 1px solid var(--line); padding-top: 16px;
+      color: var(--muted); font-size: 12px; display: flex; justify-content: space-between; gap: 12px;
+    }
+    @keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+    @keyframes drop { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
+    @keyframes card { from { opacity: 0; transform: translateY(18px) rotate(.4deg); } to { opacity: 1; transform: none; } }
+    @keyframes drift { 0%,100% { transform: translateX(0); } 50% { transform: translateX(18px); } }
+  </style>
+</head>
+<body>
+  <div class="thread" aria-hidden="true"></div>
+  <div class="wrap">
+    <header class="top">
+      <div class="mark">Red<em>thread</em></div>
+      <div class="nav"><span id="who">visitor</span><button class="btn" id="outBtn" hidden>Sign out</button></div>
+    </header>
+    <section class="hero">
+      <div>
+        <h1>The yard<br>turns with<br>the hour.</h1>
+        <p class="lede">A dark little press. Sign in, keep a drawer, and pin a note to the wall if you want it seen. The featured page is rewritten every hour — nothing here is frozen.</p>
+        <div class="clock" id="clock">Next turn — --:--</div>
+      </div>
+      <article class="edition">
+        <small id="hourLabel">This hour</small>
+        <h2 id="headline">The thread is still taut</h2>
+        <p id="bodycopy">A new dispatch lands here on the hour.</p>
+      </article>
+    </section>
+    <section class="board">
+      <div class="panel" id="left"></div>
+      <div class="panel">
+        <h3>Public wall</h3>
+        <div id="board"></div>
+      </div>
+    </section>
+    <footer class="foot">
+      <span>Kept if you asked us to keep it. Public only when you mark it so.</span>
+      <span>Redthread</span>
+    </footer>
+  </div>
+  <script>
+    const supabase = window.supabase.createClient(
+      'https://tqfocdktvjuwoiyfgesb.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRxZm9jZGt0dmp1d29peWZnZXNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk5MDg0NTIsImV4cCI6MjEwNTQ4NDQ1Mn0.8TW4fQCQHc4c_xTNBEwOK3lSC9HYCbkTbfXuYQB-S8g'
+    );
+
+    const CATALOG = [
+      { title: 'A kettle somewhere is boiling', body: 'Not a metaphor. Just the sound of a house staying awake. Write the small thing you would not usually keep.' },
+      { title: 'Names that did not stick', body: 'The first nickname that missed. The street that changed. Leave a scrap if you remember one.' },
+      { title: 'Weather that belongs to one city', body: 'A particular damp. A wind that only happens on that corner. Describe it without naming the place.' },
+      { title: 'The hour after a good meal', body: 'Not hunger, not work. The brief window where people tell the truth because they are full.' },
+      { title: 'What the hallway heard', body: 'Doors, arguments, the radio from another life. File a note as if the building were keeping minutes.' },
+      { title: 'A coat with someone else\'s ticket in it', body: 'Evidence of a night you were not invited to. Invent the rest, or tell the real one.' },
+      { title: 'Instructions for leaving quietly', body: 'How to shut a door so it does not announce you. How to put a cup down. How to go.' },
+      { title: 'The last good market stall', body: 'Fruit stacked like an argument. A person who still wraps things in paper. Remember one detail.' },
+      { title: 'Windows that stay lit too long', body: 'Someone is either working or waiting. You do not get to know which. Write as if you did.' },
+      { title: 'A map drawn from smell', body: 'Diesel, bread, wet wool, cut stems. Navigate a block using only that.' },
+      { title: 'Letters you never sent', body: 'Not because they were cruel. Because they were accurate. Pin a sentence if it can stand alone.' },
+      { title: 'The sound under the conversation', body: 'Cutlery. A bus. A dog deciding not to bark. The room is the other speaker.' },
+      { title: 'Borrowed light', body: 'A lamp from a neighbour. A phone screen. Dawn that arrives earlier than you asked.' },
+      { title: 'Work that does not look like work', body: 'Mending. Waiting. Holding a place in a queue. Give it a title as if it paid.' },
+      { title: 'The spare key problem', body: 'Who has one. Who thinks they do. What the lock remembers.' },
+      { title: 'A street that only exists at 2am', body: 'Same stones, different rules. Write the rule you noticed.' },
+      { title: 'Fruit going soft on purpose', body: 'Not waste. A decision. Something you let ripen past usefulness.' },
+      { title: 'Hands after cold water', body: 'Pink, clumsy, honest. Describe a small recovery.' },
+      { title: 'The chair that faces the wrong way', body: 'Toward the wall, the corridor, the past. Say what it is watching.' },
+      { title: 'Radio between stations', body: 'Static with a tune inside it. Half a sentence from another city. Catch it.' },
+      { title: 'Shoes left by the door as proof', body: 'Someone came home. Or meant to. Inventory the evidence.' },
+      { title: 'A promise made in a kitchen', body: 'Kitchens make people brave and then sleepy. Record the brave part.' },
+      { title: 'The colour things turn at dusk', body: 'Brick goes warmer. Faces go quieter. Name one shift.' },
+      { title: 'What you carried that was not yours', body: 'A bag, a secret, a plant, a child\'s coat. Set it down here if it is light enough.' }
+    ];
+
+    const $ = (id) => document.getElementById(id);
+    let session = null, profile = null, mode = 'signin';
+    let email = '', password = '', handle = '', displayName = '', note = '', isPublic = true, err = '', msg = '';
+    let lastHourKey = '';
+
+    function esc(s) {
+      return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+    function when(d) {
+      return new Date(d).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+    function hourKey(d = new Date()) {
+      return d.toISOString().slice(0, 13);
+    }
+    function hourLabel(d = new Date()) {
+      return d.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit' });
+    }
+    function pickFeature(key) {
+      let n = 0;
+      for (let i = 0; i < key.length; i++) n = (n * 33 + key.charCodeAt(i)) >>> 0;
+      return CATALOG[n % CATALOG.length];
+    }
+    function tickClock() {
+      const now = new Date();
+      const next = new Date(now);
+      next.setMinutes(0, 0, 0);
+      next.setHours(now.getHours() + 1);
+      const ms = next - now;
+      const m = String(Math.floor(ms / 60000)).padStart(2, '0');
+      const s = String(Math.floor((ms % 60000) / 1000)).padStart(2, '0');
+      $('clock').textContent = 'Next turn — ' + m + ':' + s;
+      const key = hourKey(now);
+      if (key !== lastHourKey) {
+        lastHourKey = key;
+        ensureHour();
+      }
+    }
+
+    async function ensureHour() {
+      const now = new Date();
+      const key = hourKey(now);
+      const feat = pickFeature(key);
+      const { data } = await supabase.from('redthread_hours').select('*').eq('hour_key', key).maybeSingle();
+      if (!data) {
+        await supabase.from('redthread_hours').insert({
+          hour_key: key,
+          hour_label: hourLabel(now),
+          title: feat.title,
+          body: feat.body
+        });
+      }
+      await loadEdition();
+    }
+
+    async function loadEdition() {
+      const { data } = await supabase.from('redthread_hours').select('*').order('created_at', { ascending: false }).limit(1);
+      const e = data && data[0];
+      if (!e) return;
+      $('hourLabel').textContent = 'This hour · ' + e.hour_label;
+      $('headline').textContent = e.title;
+      $('bodycopy').textContent = e.body;
+    }
+    async function loadPublic() {
+      const { data } = await supabase.from('redthread_notes').select('id, body, created_at, redthread_profiles(handle, display_name)').eq('is_public', true).order('created_at', { ascending: false }).limit(50);
+      const list = data || [];
+      $('board').innerHTML = list.length
+        ? list.map(n => `<div class="note"><div class="meta"><span>${esc(n.redthread_profiles?.display_name || n.redthread_profiles?.handle || 'member')}</span><span>${when(n.created_at)}</span></div><p>${esc(n.body)}</p></div>`).join('')
+        : '<p class="lede">Quiet for now. The first public note will hang here.</p>';
+    }
+    async function loadProfile() {
+      if (!session) { profile = null; return; }
+      const { data } = await supabase.from('redthread_profiles').select('*').eq('id', session.user.id).maybeSingle();
+      profile = data;
+    }
+    async function loadMine() {
+      if (!session) return [];
+      const { data } = await supabase.from('redthread_notes').select('*').eq('author_id', session.user.id).order('created_at', { ascending: false });
+      return data || [];
+    }
+
+    async function render() {
+      $('who').textContent = profile?.display_name || session?.user?.email || 'visitor';
+      $('outBtn').hidden = !session;
+      const mine = session ? await loadMine() : [];
+      let html = '';
+      if (!session) {
+        html = `<h3>${mode === 'signin' ? 'Come in' : 'Cut a key'}</h3>
+          <form id="authForm">
+            <label>Email</label><input type="email" required id="email" value="${esc(email)}">
+            <label>Password</label><input type="password" required minlength="6" id="password" value="${esc(password)}">
+            ${mode === 'signup' ? `<label>Handle</label><input id="handle" value="${esc(handle)}" placeholder="iris">
+            <label>Name on the wall</label><input id="displayName" value="${esc(displayName)}" placeholder="Iris Bell">` : ''}
+            <div class="row">
+              <button class="btn solid">${mode === 'signin' ? 'Sign in' : 'Create account'}</button>
+              <button type="button" class="btn" id="toggleMode">${mode === 'signin' ? 'Need a key?' : 'Already have one?'}</button>
+            </div>
+          </form>`;
+      } else if (!profile) {
+        html = `<h3>Set your name</h3>
+          <form id="profForm">
+            <label>Handle</label><input required id="handle" value="${esc(handle)}">
+            <label>Display name</label><input required id="displayName" value="${esc(displayName)}">
+            <div class="row"><button class="btn solid">Save</button></div>
+          </form>`;
+      } else {
+        html = `<h3>Leave a note</h3>
+          <form id="noteForm">
+            <textarea id="note" maxlength="1200" placeholder="Private unless you mark it public.">${esc(note)}</textarea>
+            <label class="check"><input type="checkbox" id="isPublic" ${isPublic ? 'checked' : ''}> Mark public — hangs on the wall</label>
+            <div class="row"><button class="btn solid">File the note</button></div>
+          </form>` + (mine.length ? `<div style="margin-top:24px"><h3>Your drawer</h3>${mine.map(n => `<div class="note"><div class="meta"><span>${n.is_public ? 'Public' : 'Private'} · ${when(n.created_at)}</span><span><button class="btn" data-toggle="${n.id}">${n.is_public ? 'Make private' : 'Make public'}</button> <button class="btn" data-del="${n.id}">Delete</button></span></div><p>${esc(n.body)}</p></div>`).join('')}</div>` : '');
+      }
+      if (err) html += `<div class="err">${esc(err)}</div>`;
+      if (msg) html += `<div class="ok">${esc(msg)}</div>`;
+      $('left').innerHTML = html;
+      bind();
+    }
+
+    function bind() {
+      const tf = (id, setter) => { const el = $(id); if (el) el.oninput = e => setter(e.target.value); };
+      tf('email', v => email = v); tf('password', v => password = v); tf('handle', v => handle = v); tf('displayName', v => displayName = v); tf('note', v => note = v);
+      const pub = $('isPublic'); if (pub) pub.onchange = e => isPublic = e.target.checked;
+      const tog = $('toggleMode'); if (tog) tog.onclick = () => { mode = mode === 'signin' ? 'signup' : 'signin'; render(); };
+      const af = $('authForm'); if (af) af.onsubmit = async (e) => {
+        e.preventDefault(); err = ''; msg = '';
+        try {
+          if (mode === 'signin') {
+            const { error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) throw error;
+          } else {
+            const { data, error } = await supabase.auth.signUp({ email, password });
+            if (error) throw error;
+            if (data.user) {
+              const h = ((handle || email.split('@')[0]).replace(/[^a-zA-Z0-9_]/g, '').slice(0, 20).toLowerCase() || 'member');
+              await supabase.from('redthread_profiles').upsert({ id: data.user.id, handle: h + data.user.id.slice(0, 4), display_name: displayName || h });
+            }
+            msg = data.session ? 'You are in.' : 'If confirmation is on, check your inbox, then sign in.';
+          }
+        } catch (ex) { err = ex.message; }
+        await boot();
+      };
+      const pf = $('profForm'); if (pf) pf.onsubmit = async (e) => {
+        e.preventDefault(); err = '';
+        const h = handle.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 20).toLowerCase();
+        const { error } = await supabase.from('redthread_profiles').upsert({ id: session.user.id, handle: h, display_name: displayName || h });
+        if (error) err = error.message; else msg = 'Name saved.';
+        await boot();
+      };
+      const nf = $('noteForm'); if (nf) nf.onsubmit = async (e) => {
+        e.preventDefault(); err = '';
+        const body = note.trim();
+        if (!body) return;
+        const { error } = await supabase.from('redthread_notes').insert({ author_id: session.user.id, body, is_public: isPublic });
+        if (error) err = error.message;
+        else { note = ''; msg = isPublic ? 'Pinned to the public wall.' : 'Filed in your drawer.'; }
+        await loadPublic(); await render();
+      };
+      document.querySelectorAll('[data-toggle]').forEach(b => b.onclick = async () => {
+        const id = b.getAttribute('data-toggle');
+        const row = (await loadMine()).find(x => x.id === id);
+        if (!row) return;
+        await supabase.from('redthread_notes').update({ is_public: !row.is_public }).eq('id', id);
+        await loadPublic(); await render();
+      });
+      document.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+        await supabase.from('redthread_notes').delete().eq('id', b.getAttribute('data-del'));
+        await loadPublic(); await render();
+      });
+    }
+
+    $('outBtn').onclick = async () => { await supabase.auth.signOut(); };
+
+    async function boot() {
+      const { data } = await supabase.auth.getSession();
+      session = data.session;
+      await loadProfile();
+      await render();
+    }
+
+    supabase.auth.onAuthStateChange((_e, s) => { session = s; loadProfile().then(render); });
+    loadPublic();
+    boot();
+    ensureHour();
+    tickClock();
+    setInterval(tickClock, 1000);
+    setInterval(loadPublic, 30000);
+  </script>
+</body>
+</html>
